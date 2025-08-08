@@ -5,15 +5,25 @@
 
 # Функция для вывода помощи
 usage() {
-    echo "Флаги: $0 [--server <Zabbix Server>] [--hostname <Hostname>]"
+    echo "Флаги: $0 [--server <Zabbix Server>] [--hostname <Hostname>] [--logfilesize <Size>] [--listenport <Port>] [--listenip <IP>] [--timeout <Seconds>]"
     exit 1
 }
+
+# Установка значений по умолчанию
+ZBX_LOGFILESIZE="0"
+ZBX_LISTENPORT="10050"
+ZBX_LISTENIP="0.0.0.0"
+ZBX_TIMEOUT="30"
 
 # Парсинг аргументов командной строки
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --server) ZBX_SERVER="$2"; shift ;;
         --hostname) ZBX_HOSTNAME="$2"; shift ;;
+        --logfilesize) ZBX_LOGFILESIZE="$2"; shift ;;
+        --listenport) ZBX_LISTENPORT="$2"; shift ;;
+        --listenip) ZBX_LISTENIP="$2"; shift ;;
+        --timeout) ZBX_TIMEOUT="$2"; shift ;;
         -h|--help) usage ;;
         *) echo "Неизвестный параметр: $1"; usage ;;
     esac
@@ -102,12 +112,12 @@ set_param() {
     echo "$key=$value" >> "$CONFIG_FILE"
 }
 
-set_param "LogFileSize" "0"
+set_param "LogFileSize" "$ZBX_LOGFILESIZE"
 set_param "Server" "$ZBX_SERVER"
 set_param "Hostname" "$ZBX_HOSTNAME"
-set_param "ListenPort" "10050"
-set_param "ListenIP" "0.0.0.0"
-set_param "Timeout" "30"
+set_param "ListenPort" "$ZBX_LISTENPORT"
+set_param "ListenIP" "$ZBX_LISTENIP"
+set_param "Timeout" "$ZBX_TIMEOUT"
 
 echo "Конфигурация Zabbix Agent 2 успешно обновлена."
 
