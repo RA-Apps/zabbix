@@ -5,7 +5,7 @@
 
 # Функция для вывода помощи
 usage() {
-    echo "Использование: $0 [--server <Zabbix Server>] [--hostname <Hostname>]"
+    echo "Флаги: $0 [--server <Zabbix Server>] [--hostname <Hostname>]"
     exit 1
 }
 
