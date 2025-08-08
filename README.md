@@ -17,11 +17,24 @@ This script automates the installation and configuration of Zabbix Agent 2 on Ce
 - Internet access to download packages and configuration files.
 
 ## Usage
-Run the script with optional command-line arguments to specify the Zabbix server and hostname:
-
-```bash
-./zabbix-install.sh [--server <Zabbix Server>] [--hostname <Hostname>]
-```
+1. **Download the Script**:
+   Using `wget`:
+   ```bash
+   wget https://raw.githubusercontent.com/RA-Apps/zabbix/main/zabbix-install.sh
+   ```
+   Alternatively, using `curl`:
+   ```bash
+   curl -O https://raw.githubusercontent.com/RA-Apps/zabbix/main/zabbix-install.sh
+   ```
+2. **Make the Script Executable**:
+   ```bash
+   chmod +x zabbix-install.sh
+   ```
+3. **Run the Script**:
+   Run the script with optional command-line arguments to specify the Zabbix server and hostname:
+   ```bash
+   ./zabbix-install.sh [--server <Zabbix Server>] [--hostname <Hostname>]
+   ```
 
 ### Options
 - `--server <Zabbix Server>`: Specify the Zabbix server IP or hostname.
