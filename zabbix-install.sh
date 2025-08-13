@@ -84,8 +84,8 @@ if [[ "$OS_NAME" == "centos" ]]; then
         sed -i '/^\[epel\]/a excludepkgs=zabbix*' /etc/yum.repos.d/epel.repo
     fi
 elif [[ "$OS_NAME" == "ubuntu" ]]; then
-    wget https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_7.0-1+ubuntu${OS_VERSION}_all.deb
-    dpkg -i zabbix-release_7.0-1+ubuntu${OS_VERSION}_all.deb
+    wget https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_7.0+ubuntu${OS_VERSION}.04_all.deb
+    dpkg -i zabbix-release_latest_7.0+ubuntu${OS_VERSION}.04_all.deb
     apt-get update
 else
     echo "Неподдерживаемая ОС: $OS_NAME"
