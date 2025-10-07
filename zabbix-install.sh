@@ -1,11 +1,11 @@
 #!/bin/bash
 # Роман Апанович
-# 07.10.2025
+# 08.08.2025
 # Автоматическая установка Zabbix Agent 2 на CentOS 7, CentOS 9 и Ubuntu 22.04 - 24.04
 
 # Функция для вывода помощи
 usage() {
-    echo "Флаги: $0 [--server <Zabbix Server>] [--hostname <Hostname>] [--logfilesize <Size>] [--listenport <Port>] [--listenip <IP>] [--timeout <Seconds>]"
+    echo "Флаги: $0 [--server <Zabbix Server>] [--hostname <Hostname>] [--logfilesize <Size>] [--listenport <Port>] [--listenip <IP>] [--timeout <Seconds>] [--disk]"
     exit 1
 }
 
@@ -14,6 +14,7 @@ ZBX_LOGFILESIZE="0"
 ZBX_LISTENPORT="10050"
 ZBX_LISTENIP="0.0.0.0"
 ZBX_TIMEOUT="30"
+DISK_MONITORING=false
 
 # Парсинг аргументов командной строки
 while [[ "$#" -gt 0 ]]; do
@@ -24,6 +25,7 @@ while [[ "$#" -gt 0 ]]; do
         --listenport) ZBX_LISTENPORT="$2"; shift ;;
         --listenip) ZBX_LISTENIP="$2"; shift ;;
         --timeout) ZBX_TIMEOUT="$2"; shift ;;
+        --disk) DISK_MONITORING=true ;;
         -h|--help) usage ;;
         *) echo "Неизвестный параметр: $1"; usage ;;
     esac
@@ -139,15 +141,17 @@ set_param "ListenIP" "$ZBX_LISTENIP"
 set_param "Timeout" "$ZBX_TIMEOUT"
 echo "Конфигурация Zabbix Agent 2 успешно обновлена."
 
-# Установка мониторинга производительности дисков
-echo "Устанавливаю мониторинг производительности дисков..."
-mkdir -p /etc/zabbix/zabbix_agent2.d/
-wget -O /etc/zabbix/zabbix_agent2.d/userparameter_diskstats.conf \
-    https://raw.githubusercontent.com/madhushacw/zabbix-disk-performance/refs/heads/master/userparameter_diskstats.conf
-mkdir -p /usr/local/bin/
-wget -O /usr/local/bin/lld-disks.py \
-    https://raw.githubusercontent.com/madhushacw/zabbix-disk-performance/refs/heads/master/lld-disks.py
-chmod +x /usr/local/bin/lld-disks.py
+# Установка мониторинга производительности дисков, если указан флаг --disk
+if [[ "$DISK_MONITORING" == true ]]; then
+    echo "Устанавливаю мониторинг производительности дисков..."
+    mkdir -p /etc/zabbix/zabbix_agent2.d/
+    wget -O /etc/zabbix/zabbix_agent2.d/userparameter_diskstats.conf \
+        https://raw.githubusercontent.com/madhushacw/zabbix-disk-performance/refs/heads/master/userparameter_diskstats.conf
+    mkdir -p /usr/local/bin/
+    wget -O /usr/local/bin/lld-disks.py \
+        https://raw.githubusercontent.com/madhushacw/zabbix-disk-performance/refs/heads/master/lld-disks.py
+    chmod +x /usr/local/bin/lld-disks.py
+fi
 
 # Запуск и добавление в автозагрузку
 echo "Запускаю и добавляю Zabbix Agent 2 в автозагрузку..."
