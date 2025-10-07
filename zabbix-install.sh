@@ -1,7 +1,7 @@
 #!/bin/bash
 # Роман Апанович
 # 08.08.2025
-# Автоматическая установка Zabbix Agent 2 на CentOS 7, CentOS 9 и Ubuntu 22.04 - 24.04
+# Автоматическая установка Zabbix Agent 2 на CentOS 7, CentOS 9, Ubuntu 22.04 - 24.04, Debian 9 - 11
 
 # Функция для вывода помощи
 usage() {
@@ -43,7 +43,7 @@ else
 fi
 
 # Проверка поддерживаемых ОС
-if [[ "$OS_NAME" != "centos" && "$OS_NAME" != "ubuntu" ]]; then
+if [[ "$OS_NAME" != "centos" && "$OS_NAME" != "ubuntu" && "$OS_NAME" != "debian" ]]; then
     echo "Неподдерживаемая ОС: $OS_NAME"
     exit 1
 fi
@@ -53,6 +53,10 @@ if [[ "$OS_NAME" == "centos" && "$OS_VERSION" != "7" && "$OS_VERSION" != "9" ]];
 fi
 if [[ "$OS_NAME" == "ubuntu" && "$OS_VERSION" != "22" && "$OS_VERSION" != "24" ]]; then
     echo "Неподдерживаемая версия Ubuntu: $OS_VERSION. Поддерживаются Ubuntu 22.04 и 24.04."
+    exit 1
+fi
+if [[ "$OS_NAME" == "debian" && "$OS_VERSION" != "9" && "$OS_VERSION" != "10" && "$OS_VERSION" != "11" ]]; then
+    echo "Неподдерживаемая версия Debian: $OS_VERSION. Поддерживаются Debian 9, 10 и 11."
     exit 1
 fi
 
@@ -83,7 +87,7 @@ if ! command -v wget &> /dev/null; then
         else
             dnf install -y wget
         fi
-    elif [[ "$OS_NAME" == "ubuntu" ]]; then
+    elif [[ "$OS_NAME" == "ubuntu" || "$OS_NAME" == "debian" ]]; then
         apt-get update
         apt-get install -y wget
     fi
@@ -109,6 +113,15 @@ elif [[ "$OS_NAME" == "ubuntu" ]]; then
     wget https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_7.0+ubuntu${OS_VERSION}.04_all.deb
     dpkg -i zabbix-release_latest_7.0+ubuntu${OS_VERSION}.04_all.deb
     apt-get update
+elif [[ "$OS_NAME" == "debian" ]]; then
+    if [[ "$OS_VERSION" == "9" ]]; then
+        wget https://repo.zabbix.com/zabbix/6.0/debian/pool/main/z/zabbix-release/zabbix-release_latest_6.0+debian9_all.deb
+        dpkg -i zabbix-release_latest_6.0+debian9_all.deb
+    else
+        wget https://repo.zabbix.com/zabbix/7.0/debian/pool/main/z/zabbix-release/zabbix-release_latest_7.0+debian${OS_VERSION}_all.deb
+        dpkg -i zabbix-release_latest_7.0+debian${OS_VERSION}_all.deb
+    fi
+    apt-get update
 fi
 
 # Установка Zabbix Agent 2
@@ -119,7 +132,7 @@ if [[ "$OS_NAME" == "centos" ]]; then
     else
         dnf install -y zabbix-agent2
     fi
-elif [[ "$OS_NAME" == "ubuntu" ]]; then
+elif [[ "$OS_NAME" == "ubuntu" || "$OS_NAME" == "debian" ]]; then
     apt-get install -y zabbix-agent2
 fi
 
@@ -144,6 +157,11 @@ echo "Конфигурация Zabbix Agent 2 успешно обновлена.
 # Установка мониторинга производительности дисков, если указан флаг --disk
 if [[ "$DISK_MONITORING" == true ]]; then
     echo "Устанавливаю мониторинг производительности дисков..."
+    # Установка Python3 для Debian 9, если требуется
+    if [[ "$OS_NAME" == "debian" && "$OS_VERSION" == "9" ]]; then
+        echo "Устанавливаю Python3 для поддержки lld-disks.py..."
+        apt-get install -y python3
+    fi
     mkdir -p /etc/zabbix/zabbix_agent2.d/
     wget -O /etc/zabbix/zabbix_agent2.d/userparameter_diskstats.conf \
         https://raw.githubusercontent.com/madhushacw/zabbix-disk-performance/refs/heads/master/userparameter_diskstats.conf
@@ -167,7 +185,7 @@ if [[ "$OS_NAME" == "centos" ]]; then
     else
         echo "firewall-cmd не установлен, пропускаю настройку firewall."
     fi
-elif [[ "$OS_NAME" == "ubuntu" ]]; then
+elif [[ "$OS_NAME" == "ubuntu" || "$OS_NAME" == "debian" ]]; then
     if command -v ufw &> /dev/null; then
         echo "Открываю порт Zabbix Agent в ufw..."
         ufw allow 10050/tcp
