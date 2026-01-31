@@ -1,38 +1,37 @@
 #!/bin/bash
 # Роман Апанович
-# 08.08.2025
-# Автоматическая установка Zabbix Agent 2 на CentOS 7, CentOS 9, Ubuntu 22.04 - 24.04, Debian 9 - 11
+# 08.08.2025 → обновлено 31.01.2026
+# Автоматическая установка Zabbix Agent 2 на CentOS 7, CentOS 9, Ubuntu 22.04–24.04, Debian 9–13
 
-# Функция для вывода помощи
 usage() {
     echo "Флаги: $0 [--server <Zabbix Server>] [--hostname <Hostname>] [--logfilesize <Size>] [--listenport <Port>] [--listenip <IP>] [--timeout <Seconds>] [--disk]"
     exit 1
 }
 
-# Установка значений по умолчанию
+# Значения по умолчанию
 ZBX_LOGFILESIZE="0"
 ZBX_LISTENPORT="10050"
 ZBX_LISTENIP="0.0.0.0"
 ZBX_TIMEOUT="30"
 DISK_MONITORING=false
 
-# Парсинг аргументов командной строки
+# Парсинг аргументов
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --server) ZBX_SERVER="$2"; shift ;;
+        --server)   ZBX_SERVER="$2";   shift ;;
         --hostname) ZBX_HOSTNAME="$2"; shift ;;
         --logfilesize) ZBX_LOGFILESIZE="$2"; shift ;;
-        --listenport) ZBX_LISTENPORT="$2"; shift ;;
-        --listenip) ZBX_LISTENIP="$2"; shift ;;
-        --timeout) ZBX_TIMEOUT="$2"; shift ;;
-        --disk) DISK_MONITORING=true ;;
-        -h|--help) usage ;;
+        --listenport)  ZBX_LISTENPORT="$2";  shift ;;
+        --listenip)    ZBX_LISTENIP="$2";    shift ;;
+        --timeout)     ZBX_TIMEOUT="$2";     shift ;;
+        --disk)        DISK_MONITORING=true ;;
+        -h|--help)     usage ;;
         *) echo "Неизвестный параметр: $1"; usage ;;
     esac
     shift
 done
 
-# Определение операционной системы
+# Определение ОС
 if [[ -f /etc/os-release ]]; then
     . /etc/os-release
     OS_NAME=$(echo "$ID" | tr '[:upper:]' '[:lower:]')
@@ -42,157 +41,149 @@ else
     exit 1
 fi
 
-# Проверка поддерживаемых ОС
-if [[ "$OS_NAME" != "centos" && "$OS_NAME" != "ubuntu" && "$OS_NAME" != "debian" ]]; then
-    echo "Неподдерживаемая ОС: $OS_NAME"
-    exit 1
-fi
-if [[ "$OS_NAME" == "centos" && "$OS_VERSION" != "7" && "$OS_VERSION" != "9" ]]; then
-    echo "Неподдерживаемая версия CentOS: $OS_VERSION. Поддерживаются CentOS 7 и 9."
-    exit 1
-fi
-if [[ "$OS_NAME" == "ubuntu" && "$OS_VERSION" != "22" && "$OS_VERSION" != "24" ]]; then
-    echo "Неподдерживаемая версия Ubuntu: $OS_VERSION. Поддерживаются Ubuntu 22.04 и 24.04."
-    exit 1
-fi
-if [[ "$OS_NAME" == "debian" && "$OS_VERSION" != "9" && "$OS_VERSION" != "10" && "$OS_VERSION" != "11" ]]; then
-    echo "Неподдерживаемая версия Debian: $OS_VERSION. Поддерживаются Debian 9, 10 и 11."
-    exit 1
-fi
+# Проверка поддерживаемых ОС и версий
+case "$OS_NAME" in
+    centos)
+        if [[ "$OS_VERSION" != "7" && "$OS_VERSION" != "9" ]]; then
+            echo "Неподдерживаемая версия CentOS: $OS_VERSION. Поддерживаются 7 и 9."
+            exit 1
+        fi
+        ;;
+    ubuntu)
+        if [[ "$OS_VERSION" != "22" && "$OS_VERSION" != "24" ]]; then
+            echo "Неподдерживаемая версия Ubuntu: $OS_VERSION. Поддерживаются 22.04 и 24.04."
+            exit 1
+        fi
+        ;;
+    debian)
+        if [[ "$OS_VERSION" -lt 9 || "$OS_VERSION" -gt 13 ]]; then
+            echo "Неподдерживаемая версия Debian: $OS_VERSION. Поддерживаются 9–13."
+            exit 1
+        fi
+        ;;
+    *)
+        echo "Неподдерживаемая ОС: $OS_NAME"
+        exit 1
+        ;;
+esac
 
-# Запрос hostname, если не указан через --hostname
-if [[ -z "$ZBX_HOSTNAME" ]]; then
+# Запрос обязательных параметров, если не переданы
+[[ -z "$ZBX_HOSTNAME" ]] && {
     read -rp "Введите Hostname для Zabbix Agent: " ZBX_HOSTNAME
-    if [[ -z "$ZBX_HOSTNAME" ]]; then
-        echo "Hostname не может быть пустым!"
-        exit 1
-    fi
-fi
+    [[ -z "$ZBX_HOSTNAME" ]] && { echo "Hostname не может быть пустым!"; exit 1; }
+}
 
-# Запрос server, если не указан через --server
-if [[ -z "$ZBX_SERVER" ]]; then
-    read -rp "Введите Server для Zabbix Agent: " ZBX_SERVER
-    if [[ -z "$ZBX_SERVER" ]]; then
-        echo "Server не может быть пустым!"
-        exit 1
-    fi
-fi
+[[ -z "$ZBX_SERVER" ]] && {
+    read -rp "Введите Server для Zabbix Agent (IP или DNS): " ZBX_SERVER
+    [[ -z "$ZBX_SERVER" ]] && { echo "Server не может быть пустым!"; exit 1; }
+}
 
-# Проверка и установка wget
-if ! command -v wget &> /dev/null; then
+# Установка wget, если отсутствует
+if ! command -v wget >/dev/null; then
     echo "Устанавливаю wget..."
     if [[ "$OS_NAME" == "centos" ]]; then
-        if [[ "$OS_VERSION" == "7" ]]; then
-            yum install -y wget
-        else
-            dnf install -y wget
-        fi
-    elif [[ "$OS_NAME" == "ubuntu" || "$OS_NAME" == "debian" ]]; then
-        apt-get update
-        apt-get install -y wget
+        [[ "$OS_VERSION" == "7" ]] && yum install -y wget || dnf install -y wget
+    else  # ubuntu / debian
+        apt-get update && apt-get install -y wget
     fi
-else
-    echo "wget уже установлен."
 fi
 
 # Установка репозитория Zabbix
 echo "Устанавливаю репозиторий Zabbix..."
+
 if [[ "$OS_NAME" == "centos" ]]; then
     if [[ "$OS_VERSION" == "7" ]]; then
         rpm -Uvh https://repo.zabbix.com/zabbix/7.0/rhel/7/x86_64/zabbix-release-latest-7.0.el7.noarch.rpm
-        yum clean all -y
+        yum clean all
     else
         rpm -Uvh https://repo.zabbix.com/zabbix/7.0/centos/9/x86_64/zabbix-release-latest-7.0.el9.noarch.rpm
-        dnf clean all -y
+        dnf clean all
     fi
-    if [[ -f /etc/yum.repos.d/epel.repo ]]; then
-        echo "Отключаю Zabbix пакеты в EPEL..."
-        sed -i '/^\[epel\]/a excludepkgs=zabbix*' /etc/yum.repos.d/epel.repo
-    fi
+    # Отключаем zabbix-пакеты в EPEL, если репозиторий есть
+    [[ -f /etc/yum.repos.d/epel.repo ]] && sed -i '/^\[epel\]/a excludepkgs=zabbix*' /etc/yum.repos.d/epel.repo
+
 elif [[ "$OS_NAME" == "ubuntu" ]]; then
-    wget https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_7.0+ubuntu${OS_VERSION}.04_all.deb
-    dpkg -i zabbix-release_latest_7.0+ubuntu${OS_VERSION}.04_all.deb
+    wget "https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_7.0+ubuntu${OS_VERSION}.04_all.deb"
+    dpkg -i "zabbix-release_latest_7.0+ubuntu${OS_VERSION}.04_all.deb"
     apt-get update
+
 elif [[ "$OS_NAME" == "debian" ]]; then
     if [[ "$OS_VERSION" == "9" ]]; then
+        # Для старого stretch используем 6.0 (7.0 официально не поддерживается)
         wget https://repo.zabbix.com/zabbix/6.0/debian/pool/main/z/zabbix-release/zabbix-release_latest_6.0+debian9_all.deb
         dpkg -i zabbix-release_latest_6.0+debian9_all.deb
     else
-        wget https://repo.zabbix.com/zabbix/7.0/debian/pool/main/z/zabbix-release/zabbix-release_latest_7.0+debian${OS_VERSION}_all.deb
-        dpkg -i zabbix-release_latest_7.0+debian${OS_VERSION}_all.deb
+        # Debian 10–13 → используем 7.0
+        wget "https://repo.zabbix.com/zabbix/7.0/debian/pool/main/z/zabbix-release/zabbix-release_latest_7.0+debian${OS_VERSION}_all.deb"
+        dpkg -i "zabbix-release_latest_7.0+debian${OS_VERSION}_all.deb"
     fi
     apt-get update
 fi
 
-# Установка Zabbix Agent 2
+# Установка самого агента
 echo "Устанавливаю Zabbix Agent 2..."
 if [[ "$OS_NAME" == "centos" ]]; then
-    if [[ "$OS_VERSION" == "7" ]]; then
-        yum install -y zabbix-agent2
-    else
-        dnf install -y zabbix-agent2
-    fi
-elif [[ "$OS_NAME" == "ubuntu" || "$OS_NAME" == "debian" ]]; then
+    [[ "$OS_VERSION" == "7" ]] && yum install -y zabbix-agent2 || dnf install -y zabbix-agent2
+else
     apt-get install -y zabbix-agent2
 fi
 
-# Настройка конфигурации Zabbix Agent 2
+# Настройка конфига
 echo "Настраиваю конфигурацию Zabbix Agent 2..."
 CONFIG_FILE="/etc/zabbix/zabbix_agent2.conf"
-cp "$CONFIG_FILE" "${CONFIG_FILE}.bak"
+[[ -f "$CONFIG_FILE" ]] || { echo "Конфиг $CONFIG_FILE не найден!"; exit 1; }
+
+cp -f "$CONFIG_FILE" "${CONFIG_FILE}.bak_$(date +%F_%H%M)"
+
 set_param() {
-    local key="$1"
-    local value="$2"
+    local key="$1" value="$2"
     sed -i "/^[# ]*$key=/d" "$CONFIG_FILE"
     echo "$key=$value" >> "$CONFIG_FILE"
 }
-set_param "LogFileSize" "$ZBX_LOGFILESIZE"
-set_param "Server" "$ZBX_SERVER"
-set_param "Hostname" "$ZBX_HOSTNAME"
-set_param "ListenPort" "$ZBX_LISTENPORT"
-set_param "ListenIP" "$ZBX_LISTENIP"
-set_param "Timeout" "$ZBX_TIMEOUT"
-echo "Конфигурация Zabbix Agent 2 успешно обновлена."
 
-# Установка мониторинга производительности дисков, если указан флаг --disk
+set_param "LogFileSize"  "$ZBX_LOGFILESIZE"
+set_param "Server"       "$ZBX_SERVER"
+set_param "Hostname"     "$ZBX_HOSTNAME"
+set_param "ListenPort"   "$ZBX_LISTENPORT"
+set_param "ListenIP"     "$ZBX_LISTENIP"
+set_param "Timeout"      "$ZBX_TIMEOUT"
+
+echo "Конфигурация обновлена."
+
+# Дополнительный мониторинг дисков (если запрошен)
 if [[ "$DISK_MONITORING" == true ]]; then
-    echo "Устанавливаю мониторинг производительности дисков..."
-    # Установка Python3 для Debian 9, если требуется
+    echo "Устанавливаю пользовательские параметры для мониторинга дисков..."
     if [[ "$OS_NAME" == "debian" && "$OS_VERSION" == "9" ]]; then
-        echo "Устанавливаю Python3 для поддержки lld-disks.py..."
         apt-get install -y python3
     fi
-    mkdir -p /etc/zabbix/zabbix_agent2.d/
-    wget -O /etc/zabbix/zabbix_agent2.d/userparameter_diskstats.conf \
-        https://raw.githubusercontent.com/madhushacw/zabbix-disk-performance/refs/heads/master/userparameter_diskstats.conf
-    mkdir -p /usr/local/bin/
-    wget -O /usr/local/bin/lld-disks.py \
-        https://raw.githubusercontent.com/madhushacw/zabbix-disk-performance/refs/heads/master/lld-disks.py
+    mkdir -p /etc/zabbix/zabbix_agent2.d /usr/local/bin
+    wget -qO /etc/zabbix/zabbix_agent2.d/userparameter_diskstats.conf \
+        https://raw.githubusercontent.com/madhushacw/zabbix-disk-performance/master/userparameter_diskstats.conf
+    wget -qO /usr/local/bin/lld-disks.py \
+        https://raw.githubusercontent.com/madhushacw/zabbix-disk-performance/master/lld-disks.py
     chmod +x /usr/local/bin/lld-disks.py
 fi
 
-# Запуск и добавление в автозагрузку
-echo "Запускаю и добавляю Zabbix Agent 2 в автозагрузку..."
+# Запуск и автозагрузка
+echo "Запускаю и включаю автозагрузку zabbix-agent2..."
 systemctl enable --now zabbix-agent2
 
-# Настройка firewall
-echo "Настраиваю firewall..."
+# Настройка файрвола (если есть)
+echo "Настраиваю firewall (если присутствует)..."
 if [[ "$OS_NAME" == "centos" ]]; then
-    if command -v firewall-cmd &> /dev/null; then
-        echo "Открываю порт Zabbix Agent в firewalld..."
-        firewall-cmd --zone=public --add-service=zabbix-agent --permanent
+    if command -v firewall-cmd >/dev/null; then
+        firewall-cmd --permanent --add-service=zabbix-agent
         firewall-cmd --reload
-    else
-        echo "firewall-cmd не установлен, пропускаю настройку firewall."
     fi
-elif [[ "$OS_NAME" == "ubuntu" || "$OS_NAME" == "debian" ]]; then
-    if command -v ufw &> /dev/null; then
-        echo "Открываю порт Zabbix Agent в ufw..."
+else  # ubuntu/debian
+    if command -v ufw >/dev/null; then
         ufw allow 10050/tcp
         ufw reload
-    else
-        echo "ufw не установлен, пропускаю настройку firewall."
     fi
 fi
+
 systemctl restart zabbix-agent2
-echo "Установка Zabbix Agent 2 завершена!"
+
+echo "Установка и настройка Zabbix Agent 2 завершена!"
+echo "Проверьте статус:   systemctl status zabbix-agent2"
+echo "Лог:               tail -f /var/log/zabbix/zabbix_agent2.log"
