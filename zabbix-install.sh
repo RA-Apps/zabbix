@@ -1,7 +1,7 @@
 #!/bin/bash
 # Роман Апанович
-# 08.08.2025 → обновлено 31.01.2026
-# Автоматическая установка Zabbix Agent 2 на CentOS 7, CentOS 9, Ubuntu 22.04–24.04, Debian 9–13
+# 08.08.2025 → обновлено 16.07.2026
+# Автоматическая установка Zabbix Agent 2 на CentOS 7, CentOS 9, AlmaLinux 10, Ubuntu 22.04–24.04, Debian 9–13
 
 usage() {
     echo "Флаги: $0 [--server <Zabbix Server>] [--hostname <Hostname>] [--logfilesize <Size>] [--listenport <Port>] [--listenip <IP>] [--timeout <Seconds>] [--disk]"
@@ -49,6 +49,12 @@ case "$OS_NAME" in
             exit 1
         fi
         ;;
+    almalinux)
+        if [[ "$OS_VERSION" != "10" ]]; then
+            echo "Неподдерживаемая версия AlmaLinux: $OS_VERSION. Поддерживается 10."
+            exit 1
+        fi
+        ;;
     ubuntu)
         if [[ "$OS_VERSION" != "22" && "$OS_VERSION" != "24" ]]; then
             echo "Неподдерживаемая версия Ubuntu: $OS_VERSION. Поддерживаются 22.04 и 24.04."
@@ -83,6 +89,8 @@ if ! command -v wget >/dev/null; then
     echo "Устанавливаю wget..."
     if [[ "$OS_NAME" == "centos" ]]; then
         [[ "$OS_VERSION" == "7" ]] && yum install -y wget || dnf install -y wget
+    elif [[ "$OS_NAME" == "almalinux" ]]; then
+        dnf install -y wget
     else  # ubuntu / debian
         apt-get update && apt-get install -y wget
     fi
@@ -99,6 +107,12 @@ if [[ "$OS_NAME" == "centos" ]]; then
         rpm -Uvh https://repo.zabbix.com/zabbix/7.0/centos/9/x86_64/zabbix-release-latest-7.0.el9.noarch.rpm
         dnf clean all
     fi
+    # Отключаем zabbix-пакеты в EPEL, если репозиторий есть
+    [[ -f /etc/yum.repos.d/epel.repo ]] && sed -i '/^\[epel\]/a excludepkgs=zabbix*' /etc/yum.repos.d/epel.repo
+
+elif [[ "$OS_NAME" == "almalinux" ]]; then
+    rpm -Uvh https://repo.zabbix.com/zabbix/7.0/rhel/10/x86_64/zabbix-release-latest-7.0.el10.noarch.rpm
+    dnf clean all
     # Отключаем zabbix-пакеты в EPEL, если репозиторий есть
     [[ -f /etc/yum.repos.d/epel.repo ]] && sed -i '/^\[epel\]/a excludepkgs=zabbix*' /etc/yum.repos.d/epel.repo
 
@@ -124,6 +138,8 @@ fi
 echo "Устанавливаю Zabbix Agent 2..."
 if [[ "$OS_NAME" == "centos" ]]; then
     [[ "$OS_VERSION" == "7" ]] && yum install -y zabbix-agent2 || dnf install -y zabbix-agent2
+elif [[ "$OS_NAME" == "almalinux" ]]; then
+    dnf install -y zabbix-agent2
 else
     apt-get install -y zabbix-agent2
 fi
@@ -170,7 +186,7 @@ systemctl enable --now zabbix-agent2
 
 # Настройка файрвола (если есть)
 echo "Настраиваю firewall (если присутствует)..."
-if [[ "$OS_NAME" == "centos" ]]; then
+if [[ "$OS_NAME" == "centos" || "$OS_NAME" == "almalinux" ]]; then
     if command -v firewall-cmd >/dev/null; then
         firewall-cmd --permanent --add-service=zabbix-agent
         firewall-cmd --reload
