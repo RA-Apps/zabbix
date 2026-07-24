@@ -1,7 +1,7 @@
 #!/bin/bash
 # Роман Апанович
-# 08.08.2025 → обновлено 16.07.2026
-# Автоматическая установка Zabbix Agent 2 на CentOS 7, CentOS 9, AlmaLinux 10, Ubuntu 22.04–24.04, Debian 9–13
+# 08.08.2025 → обновлено 24.07.2026
+# Автоматическая установка Zabbix Agent 2 на CentOS 7, CentOS 9, AlmaLinux 10, Ubuntu 22.04–26.04, Debian 9–13
 
 usage() {
     echo "Флаги: $0 [--server <Zabbix Server>] [--hostname <Hostname>] [--logfilesize <Size>] [--listenport <Port>] [--listenip <IP>] [--timeout <Seconds>] [--disk]"
@@ -56,8 +56,8 @@ case "$OS_NAME" in
         fi
         ;;
     ubuntu)
-        if [[ "$OS_VERSION" != "22" && "$OS_VERSION" != "24" ]]; then
-            echo "Неподдерживаемая версия Ubuntu: $OS_VERSION. Поддерживаются 22.04 и 24.04."
+        if [[ "$OS_VERSION" != "22" && "$OS_VERSION" != "24" && "$OS_VERSION" != "26" ]]; then
+            echo "Неподдерживаемая версия Ubuntu: $OS_VERSION. Поддерживаются 22.04, 24.04 и 26.04."
             exit 1
         fi
         ;;
@@ -117,6 +117,7 @@ elif [[ "$OS_NAME" == "almalinux" ]]; then
     [[ -f /etc/yum.repos.d/epel.repo ]] && sed -i '/^\[epel\]/a excludepkgs=zabbix*' /etc/yum.repos.d/epel.repo
 
 elif [[ "$OS_NAME" == "ubuntu" ]]; then
+    # Скачиваем официальный пакет для конкретной версии Ubuntu
     wget "https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_7.0+ubuntu${OS_VERSION}.04_all.deb"
     dpkg -i "zabbix-release_latest_7.0+ubuntu${OS_VERSION}.04_all.deb"
     apt-get update
